@@ -1,3 +1,10 @@
+let PRESS_COLOR = 'red';
+// This is the local addres of the machine that i use to dev this, you'll need to change it
+let WS_ADDRESS = '192.168.1.39' 
+
+let websocket = false;
+
+
 $(document).ready(function () {
     if ("WebSocket" in window){
         websocket = true;
@@ -19,79 +26,46 @@ function ws_send(msg){
             open_ws(msg);
         }else{
             ws.send( JSON.stringify(msg) );
-        console.log("ws_send sent");
+        console.log(`Sending ${msg}`);
         }
     }
-}
-
-function colorize_button(id){
-    // switch id{
-    // case 'button_up':
-    //     console.log('Pressed button up');
-    //     let btn = document.getEmementById("button_up");
-    //     btn
-
-    // case 'button_left':
-    //     console.log('Pressed button left');
-    // case 'button_down':
-    //     console.log('Pressed button down');
-    // case 'button_right':
-    //     console.log('Pressed button right');
-    // }
-
-    document.getElementById(id).style.backgroundColor = "Red"
 }
 
 
 function open_ws(msg){
     if( typeof(ws) == 'undefined' || ws.readyState === undefined || ws.readyState > 1){
         // websocket on same server with address /websocket
-        ws = new WebSocket("ws://localhost:8888/websocket");
+        ws = new WebSocket(`ws://${WS_ADDRESS}:8888/websocket`);
 
         ws.onopen = function(){
             // Web Socket is connected, send data using send()
             console.log("ws open");
-                if( msg.length != 0 ){
-                    ws_send(msg);
-                }
-            };
+            if( msg.length != 0 ){
+                ws_send(msg);
+            }
+        };
 
         ws.onmessage = function (evt){
-            var received_msg = evt.data;
-            console.log(evt.data);
             msg = JSON.parse(evt.data)
+            console.log(`Receiving ${msg}`);
+            
 
-            if( msg.event == "Directional Control" ){
-                let button_id = '';
-                console.log("switch")
-                switch (msg.data){
-                case 'Up':
-                    console.log("up")
-                    button_id = 'button_up';
-                    break
-                case 'Left':
-                    console.log("left")
-                    button_id = 'button_left';
-                    break
-                case 'Down':
-                    console.log("down")
-                    button_id = 'button_down';
-                    break
-                case 'Right':
-                    console.log("right")
-                    button_id = 'button_right';
-                    break
-                }
+            if( msg.event == "direction_press" ){
+                let button_id = direction_to_button_id(msg.data);
                 if (button_id != ''){
-                    colorize_button(button_id)
+                    direction_trigger(button_id, 'press')
                 }else{
                     console.log(`Could not find the right id for given button ${msg.data}`)
                 }
-               // process message x
-            }else if( msg.event == 'y' ){
-               // process message y
-            }else if( msg.event == 'z' ) {
-               // process message z
+            }else if( msg.event == "direction_release" ){
+                let button_id = direction_to_button_id(msg.data);
+                if (button_id != ''){
+                    direction_trigger(button_id, 'release')
+                }else{
+                    console.log(`Could not find the right id for given button ${msg.data}`)
+                }
+            }else{
+                console.log('Could not understand reveived message')
             }
         };
 
@@ -104,15 +78,86 @@ function open_ws(msg){
    }
 }
 
-function button_up(){
-    ws_send({event: "Directional Control", data: "Up"})
+function button_id_to_direction(id){
+    let direction = '';
+    switch (id){
+    case 'button_up':
+        direction = 'Up';
+        break
+    case 'button_left':
+        direction = 'Left';
+        break
+    case 'button_down':
+        direction = 'Down';
+        break
+    case 'button_right':
+        direction = 'Right';
+        break
+    }
+    return direction
 }
-function button_left(){
-    ws_send({event: "Directional Control", data: "Left"})
+
+function direction_to_button_id(dir){
+    let id = '';
+    switch (dir){
+    case 'Up':
+        id = 'button_up';
+        break
+    case 'Left':
+        id = 'button_left';
+        break
+    case 'Down':
+        id = 'button_down';
+        break
+    case 'Right':
+        id = 'button_right';
+        break
+    }
+    return id
 }
-function button_down(){
-    ws_send({event: "Directional Control", data: "Down"})
+
+function direction_trigger(id, state){
+    let color = '';
+    if (state == 'press'){
+        color = PRESS_COLOR
+    }
+    document.getElementById(id).style.backgroundColor = color
+    if (state == 'press'){
+        console.log(`${id} pressed`)
+    }else if (state == 'release'){
+        console.log(`${id} released`)
+    }else{
+        console.log(`state '${state}' could not be understood`)
+    }
+    
 }
-function button_right(){
-    ws_send({event: "Directional Control", data: "Right"})
+
+function button_press(id){
+    let direction = button_id_to_direction(id);
+    if (direction == ''){
+        console.log(`Could not translate button id: ${id} to an understandable direction`)
+        return 1
+    }
+    ws_send({event: "direction_press", data: direction})
+    direction_trigger(id, 'press')
+
 }
+function button_release(id){
+    let direction = button_id_to_direction(id);
+    if (direction == ''){
+        console.log(`Could not translate button id: ${id} to an understandable direction`)
+        return 1
+    }
+    ws_send({event: "direction_release", data: direction})
+    direction_trigger(id, 'release')
+}
+
+/// sets an event listener func for each event for each elements
+function AddMultiEventListener(arg_elements, arg_events, func){
+    arg_elements.split(' ').forEach(el => arg_events.split(' ').forEach(ev => document.getElementById(el).addEventListener(ev, function() {
+        func(el)
+    })))
+}
+
+AddMultiEventListener('button_up button_left button_down button_right', 'mousedown touchstart', button_press)
+AddMultiEventListener('button_up button_left button_down button_right', 'mouseup mouseleave touchend', button_release)
