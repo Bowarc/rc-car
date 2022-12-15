@@ -5,6 +5,11 @@ let WS_ADDRESS = '192.168.1.39'
 let websocket = false;
 
 
+function isMobile() {
+  try{ document.createEvent("TouchEvent"); return true; }
+  catch(e){ return false; }
+}
+
 $(document).ready(function () {
     if ("WebSocket" in window){
         websocket = true;
@@ -15,7 +20,7 @@ $(document).ready(function () {
 
     var msg = { event: 'register', };
     ws_send(msg);
-}); // ready end
+});
 
 
 
@@ -26,7 +31,7 @@ function ws_send(msg){
             open_ws(msg);
         }else{
             ws.send( JSON.stringify(msg) );
-        console.log(`Sending ${msg}`);
+            console.log(`Sending ${msg}`);
         }
     }
 }
@@ -132,32 +137,39 @@ function direction_trigger(id, state){
     
 }
 
-function button_press(id){
+function button_press(id, ev){
     let direction = button_id_to_direction(id);
     if (direction == ''){
         console.log(`Could not translate button id: ${id} to an understandable direction`)
         return 1
     }
-    ws_send({event: "direction_press", data: direction})
+    ws_send({event: "direction_press", data: direction, button_event: ev})
     direction_trigger(id, 'press')
 
 }
-function button_release(id){
+function button_release(id, ev){
     let direction = button_id_to_direction(id);
     if (direction == ''){
         console.log(`Could not translate button id: ${id} to an understandable direction`)
         return 1
     }
-    ws_send({event: "direction_release", data: direction})
+    ws_send({event: "direction_release", data: direction, button_event: ev})
     direction_trigger(id, 'release')
 }
 
 /// sets an event listener func for each event for each elements
 function AddMultiEventListener(arg_elements, arg_events, func){
     arg_elements.split(' ').forEach(el => arg_events.split(' ').forEach(ev => document.getElementById(el).addEventListener(ev, function() {
-        func(el)
+        func(el, ev)
     })))
 }
 
-AddMultiEventListener('button_up button_left button_down button_right', 'mousedown touchstart', button_press)
-AddMultiEventListener('button_up button_left button_down button_right', 'mouseup mouseleave touchend', button_release)
+if (isMobile()){
+    AddMultiEventListener('button_up button_left button_down button_right', 'touchstart', button_press)
+    AddMultiEventListener('button_up button_left button_down button_right', 'touchend', button_release)
+}else{
+    AddMultiEventListener('button_up button_left button_down button_right', 'mousedown', button_press)
+    AddMultiEventListener('button_up button_left button_down button_right', 'mouseup mouseleave', button_release)
+}
+
+

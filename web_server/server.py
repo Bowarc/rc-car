@@ -7,26 +7,28 @@ import tornado.web
 import tornado.wsgi
 import tornado.websocket
 import json
+import os
+
+CLIENT_FILES_PATH = os.path.dirname(os.path.abspath(__file__)) + "\\static"
 
 define('port', type=int, default=8888)
 
 
-class HelloHandler(tornado.web.RequestHandler):
+class MainHandler(tornado.web.RequestHandler):
     def get(self):
-        self.render("static/client.html")
+        self.render(f"{CLIENT_FILES_PATH}\\client.html")
 
 
-class clientJS(tornado.web.RequestHandler):
+class ClientJS(tornado.web.RequestHandler):
     def get(self):
-        self.set_header("Content-Type", 'text/javascript; charset="utf-8"')
-        with open("static/client.js", "r") as f:
+        with open(f"{CLIENT_FILES_PATH}\\client.js", "r") as f:
+            self.set_header("Content-Type", 'text/javascript; charset="utf-8"')
             self.write(f.read())
 
 
-class clientCSS(tornado.web.RequestHandler):
+class ClientCSS(tornado.web.RequestHandler):
     def get(self):
-        with open("static/style.css", "r") as f:
-            # self.set_header('Content-Type', "text/css")
+        with open(f"{CLIENT_FILES_PATH}\\style.css", "r") as f:
             self.set_header("Content-Type", 'text/css; charset="utf-8"')
             self.write(f.read())
 
@@ -38,13 +40,13 @@ class MyWebSocket(tornado.websocket.WebSocketHandler):
         return True
 
     def open(self):
+        print(f"[{self.request.remote_ip}] connected")
         # clients must be accessed through class object!!!
         MyWebSocket.clients.append(self)
-        print("\nWebSocket opened")
         self.report_clients()
 
     def on_message(self, message):
-        print("msg recevied", message)
+        print(f"[{self.request.remote_ip}]:", message)
         msg = json.loads(message)  # todo: safety?
 
         # send other clients this message
@@ -53,7 +55,7 @@ class MyWebSocket(tornado.websocket.WebSocketHandler):
                 c.write_message(msg)
 
     def on_close(self):
-        print("WebSocket closed")
+        print(f"[{self.request.remote_ip}] disconnected")
         # clients must be accessed through class object!!!
         MyWebSocket.clients.remove(self)
         self.report_clients()
@@ -64,10 +66,10 @@ class MyWebSocket(tornado.websocket.WebSocketHandler):
 
 def main():
     tornado_app = tornado.web.Application([
-        ('/', HelloHandler),
+        ('/', MainHandler),
         ('/websocket', MyWebSocket),
-        ('/client.js', clientJS),
-        ('/style.css', clientCSS)
+        ('/client.js', ClientJS),
+        ('/style.css', ClientCSS)
     ])
     server = tornado.httpserver.HTTPServer(tornado_app)
     server.listen(options.port)
